@@ -1,0 +1,381 @@
+---
+title: "Infraestrutura Escolar e Desigualdade Socioeconômica no Brasil – Censo Escolar 2024"
+author: "Isabella Thalia"
+date: "10/28/2025"
+lang: pt-BR
+editor: visual
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+    number-sections: true
+    code-fold: false
+    code-tools: false
+
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+# Carregar
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+##base microdados 
+dados <- read_delim(
+  "microdados_ed_basica_2024.csv",
+  delim = ";",
+  locale = locale(encoding = "Latin1")
+)
+
+
+
+# Seleciona apenas as variáveis de interesse
+base_filtrada <- dados %>%
+  select(
+    SG_UF,
+    CO_UF,
+    NO_REGIAO,
+    TP_LOCALIZACAO,
+    TP_DEPENDENCIA,
+    IN_AGUA_POTAVEL,
+    IN_ENERGIA_REDE_PUBLICA,
+    IN_ESGOTO_REDE_PUBLICA,
+    IN_BANHEIRO,
+    IN_BIBLIOTECA_SALA_LEITURA,
+    IN_REFEITORIO,
+    IN_QUADRA_ESPORTES
+  )
+
+
+base_filtrada <- base_filtrada |> drop_na()
+
+
+#-----------------------------------------------
+# 2. Calcular médias por região
+#-----------------------------------------------
+infra_regiao <- base_filtrada |>
+  group_by(NO_REGIAO) |>
+  summarise(
+    `Água potável`   = mean(IN_AGUA_POTAVEL == 1, na.rm = TRUE) * 100,
+    `Energia elétrica` = mean(IN_ENERGIA_REDE_PUBLICA == 1, na.rm = TRUE) * 100,
+    `Esgotamento sanitário` = mean(IN_ESGOTO_REDE_PUBLICA == 1, na.rm = TRUE) * 100
+  ) |>
+  tidyr::pivot_longer(
+    cols = c(`Água potável`, `Energia elétrica`, `Esgotamento sanitário`),
+    names_to = "Infraestrutura",
+    values_to = "Percentual"
+  )
+```
+
+## Introdução
+
+A infraestrutura escolar é um dos pilares fundamentais para a garantia de uma educação de qualidade e equitativa. No contexto brasileiro, as condições físicas e materiais das escolas refletem diretamente as desigualdades socioeconômicas históricas e regionais do país. A análise dos dados do Censo Escolar 2024, principal levantamento estatístico sobre a educação básica no Brasil, evidencia avanços pontuais, mas também revela persistentes disparidades entre redes de ensino, regiões e contextos urbanos e rurais. O Brasil, enfrenta desafios estruturais que vão muito além da ampliação do acesso à escola. Questões como a falta de saneamento básico, de bibliotecas, laboratórios, conexão adequada à internet e espaços de lazer continuam impactando o cotidiano de milhões de estudantes. Em escolas localizadas em áreas vulneráveis, sobretudo nas regiões Norte e Nordeste, as deficiências na infraestrutura são mais acentuadas, comprometendo o processo de ensino-aprendizagem e a permanência dos alunos.
+
+## Objetivos
+
+Avaliar o nível de infraestrutura básica e pedagógica das escolas brasileiras e analisar sua relação com as desigualdades regionais e socioeconômicas, utilizando os microdados do Censo Escolar 2024 como principal base.
+
+-   Mensurar o acesso das escolas brasileiras a serviços básicos (água potável, energia, esgoto e banheiro).
+
+-   Avaliar a presença de espaços pedagógicos e de convivência.
+
+-   Comparar a infraestrutura entre redes de ensino (pública e privada) e localizações (urbana e rural).
+
+## Variáveis Selecionadas
+
+**SG_UF** Sigla da Unidade da Federação onde a escola está localizada.
+
+**CO_UF** Código numérico da Unidade da Federação, conforme a codificação do IBGE.
+
+**NO_REGIAO** Nome da macrorregião brasileira: Norte, Nordeste, Centro-Oeste, Sudeste ou Sul.
+
+**TP_LOCALIZACAO** Tipo de localização da escola (Urbana,Rural).
+
+**TP_DEPENDENCIA** Dependência administrativa (Federal,Estadual, Municipal, Privada).
+
+**IN_AGUA_POTAVEL** Indica se a escola possui acesso a água potável. \|
+
+**IN_ENERGIA_REDE_PUBLICA** Indica se a escola é atendida por energia elétrica da rede.
+
+**IN_ESGOTO_REDE_PUBLICA**Indica se a escola está conectada à rede pública de esgoto.
+
+**IN_BANHEIRO** Informa se a escola possui banheiros em suas instalações.
+
+**IN_BIBLIOTECA_SALA_LEITURA** Indica se há biblioteca ou sala de leitura disponível.
+
+**IN_REFEITORIO** Indica se a escola possui refeitório para alimentação dos alunos.
+
+**Como se distribui o acesso dos estabelecimentos de ensino básico aos serviços de infraestrutura essencial — água potável, energia elétrica e esgotamento sanitário — entre as diferentes regiões do Brasil, segundo o Censo Escolar 2024?**
+
+```{r}
+ggplot(infra_regiao, aes(x = fct_reorder(NO_REGIAO, Percentual, .fun = mean), 
+                         y = Percentual, fill = Infraestrutura)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7, alpha = 0.9) +
+  
+  # Cores no padrão JPA
+  scale_fill_manual(
+    values = c(
+      "Água potável" = "#1E88E5",
+      "Energia elétrica" = "#0D47A1",
+      "Esgotamento sanitário" = "#90A4AE"
+    )
+  ) +
+  
+  # Rótulos e escalas
+  scale_y_continuous(labels = label_percent(scale = 1)) +
+  labs(
+    title = "Infraestrutura Básica das Escolas Brasileiras – 2024",
+    subtitle = "",
+    x = "Região do Brasil",
+    y = "% de Escolas com o Serviço",
+    fill = "Indicador",
+    caption = "Fonte: INEP – Censo Escolar 2024"
+  ) +
+  
+  # Estilo do gráfico
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(size = 12, color = "gray25"),
+    plot.caption = element_text(size = 10, color = "gray40", hjust = 0),
+    axis.text = element_text(color = "gray25"),
+    axis.title.y = element_text(margin = margin(r = 10)),
+    axis.title.x = element_text(margin = margin(t = 10)),
+    legend.position = "top",
+    legend.title = element_text(face = "bold")
+  )
+```
+
+Observa-se que o acesso à água e à energia é praticamente universal em todas as regiões, com destaque para Sudeste, Sul e Centro-Oeste, enquanto o Norte apresenta os menores percentuais. O esgotamento sanitário é o ponto mais crítico, revelando fortes desigualdades regionais: as escolas do Sudeste possuem ampla cobertura, enquanto Nordeste e Norte concentram os maiores déficits. Em síntese, o gráfico evidencia que, embora o país tenha avançado em serviços essenciais, o saneamento básico escolar ainda é um desafio estrutural para a equidade educacional.
+
+**Como se diferencia o nível de infraestrutura básica entre as escolas públicas e privadas brasileiras, segundo o Censo Escolar 2024?**
+
+```{r}
+# ============================
+# Mapas Pública x Privada — Censo style (azul)
+# ============================
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(geobr)
+
+# 1) Indicador médio (Água + Energia + Esgoto) por UF e tipo de rede
+infra_mapa <- base_filtrada |>
+  mutate(REDE = case_when(
+    TP_DEPENDENCIA %in% c(4,"4","PRIVADA") ~ "Privada",
+    TP_DEPENDENCIA %in% c(1,2,3,"1","2","3","FEDERAL","ESTADUAL","MUNICIPAL") ~ "Pública",
+    TRUE ~ as.character(TP_DEPENDENCIA)
+  )) |>
+  group_by(SG_UF, REDE) |>
+  summarise(
+    infra_media = (
+      mean(IN_AGUA_POTAVEL == 1, na.rm = TRUE) +
+        mean(IN_ENERGIA_REDE_PUBLICA == 1, na.rm = TRUE) +
+        mean(IN_ESGOTO_REDE_PUBLICA == 1, na.rm = TRUE)
+    ) / 3 * 100,
+    .groups = "drop"
+  )
+
+# 2) Shapefile dos estados
+mapa <- geobr::read_state(showProgress = FALSE)
+
+# Corrige nome da coluna de geometria, caso venha como "geom"
+if ("geom" %in% names(mapa)) {
+  mapa <- dplyr::rename(mapa, geometry = geom)
+}
+
+mapa <- mapa |>
+  dplyr::select(abbrev_state, name_state, geometry)
+
+
+# 3) Juntar com os indicadores
+mapa_infra <- mapa|>
+  left_join(infra_mapa, by = c("abbrev_state" = "SG_UF")) |>
+  mutate(REDE = factor(REDE, levels = c("Privada","Pública")))
+
+# 4) Plot com escala mais contrastante (legibilidade melhor)
+p_maps <- ggplot(mapa_infra) +
+  geom_sf(aes(fill = infra_media), color = "white", linewidth = 0.25) +
+  facet_wrap(~ REDE, nrow = 1) +
+  scale_fill_gradientn(
+    colours = c("#E3F2FD","#BBDEFB","#64B5F6","#1E88E5","#0D47A1"), # azul Censo, mais contraste
+    limits  = c(50, 100), oob = squish,
+    breaks  = seq(50, 100, by = 10),
+    labels  = function(x) paste0(x, "%"),
+    name    = "Infraestrutura (%)",
+    guide   = guide_colorbar(
+      barwidth = 16, barheight = 0.7,
+      title.position = "top", title.hjust = 0.5,
+      ticks = TRUE, ticks.colour = "gray30",
+      frame.colour = "gray70"
+    )
+  ) +
+  coord_sf(datum = NA) +
+  labs(
+    title    = "Infraestrutura Básica das Escolas — Pública x Privada",
+    subtitle = "Média de acesso a água potável, energia elétrica e esgoto por UF",
+    caption  = "Fonte: INEP – Censo Escolar 2024"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.major = element_blank(),
+    axis.text  = element_blank(), axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, colour = "gray25"),
+    plot.caption  = element_text(size = 10, colour = "gray40", hjust = 0),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+
+p_maps
+
+
+
+```
+
+O gráfico evidencia uma diferença expressiva na qualidade da infraestrutura básica entre as redes pública e privada de ensino no Brasil. As escolas privadas apresentam níveis muito mais elevados e homogêneos de infraestrutura, com índices próximos de 100% em praticamente todos os estados, indicando acesso quase universal a água potável, energia elétrica e esgotamento sanitário. Nas escolas públicas, contudo, observa-se grande variação regional e níveis mais baixos de atendimento. Estados do Sudeste e Sul concentram os melhores resultados, com percentuais entre 80% e 90%, enquanto o Norte e parte do Nordeste apresentam os menores índices, em alguns casos abaixo de 70%. Esses resultados demonstram que a infraestrutura escolar no Brasil é fortemente marcada por desigualdades estruturais: as escolas privadas, com maior aporte de recursos, oferecem condições físicas mais adequadas, enquanto as redes públicas — especialmente em regiões menos desenvolvidas — ainda enfrentam déficits significativos em saneamento e serviços básicos, o que reflete diretamente nas condições de ensino e na equidade educacional.
+
+**Como se distribui o acesso a biblioteca ou sala de leitura entre as escolas públicas e privadas nas diferentes regiões do Brasil, segundo o Censo Escolar 2024?**
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(scales)
+
+# Base agregada
+tab_bib <- dados |>
+  mutate(
+    rede = ifelse(TP_DEPENDENCIA == 4, "Privada", "Pública"),
+    regiao = NO_REGIAO
+  ) |>
+  group_by(regiao, rede) |>
+  summarise(
+    pct_biblioteca = mean(IN_BIBLIOTECA_SALA_LEITURA, na.rm = TRUE) * 100,
+    .groups = "drop"
+  ) |>
+  mutate(regiao = fct_relevel(regiao, "Norte","Nordeste","Centro-Oeste","Sul","Sudeste"))
+
+# Gráfico
+ggplot(tab_bib, aes(x = regiao, y = pct_biblioteca, fill = rede)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.9) +
+  geom_text(aes(label = paste0(round(pct_biblioteca,1), "%")),
+            position = position_dodge(width = 0.7), vjust = -0.4, size = 3.3) +
+  scale_fill_manual(NULL, values = c("Pública"="#1565C0","Privada"="#64B5F6")) +
+  scale_y_continuous("% de escolas com biblioteca/sala de leitura",
+                     limits = c(0, 100), expand = expansion(mult = c(0.02, 0.08))) +
+  labs(
+    title = "Escolas com Biblioteca ou Sala de Leitura – Pública x Privada",
+    subtitle = "Percentual por região do Brasil",
+    x = "Região do Brasil",
+    caption = "Fonte: INEP – Censo Escolar 2024"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+O gráfico apresenta o percentual de escolas brasileiras que possuem biblioteca ou sala de leitura, comparando as redes pública e privada em cada região do país. Observa-se que, em todas as regiões, as escolas privadas apresentam maior disponibilidade desses espaços, com destaque para o Norte (74,4% contra 30%) e o Nordeste (76,1% contra 38,9%), onde as diferenças são mais acentuadas. No Centro-Oeste, a presença de bibliotecas também é superior na rede privada (77,9%) em relação à pública (61,7%), embora com menor disparidade. Já nas regiões Sul e Sudeste, o cenário se inverte: há maior equilíbrio no Sul (66,1% privadas e 64,2% públicas) e até uma vantagem para a rede pública no Sudeste (61,7% contra 56,4% nas privadas). De modo geral, o gráfico evidencia que o acesso a espaços de leitura ainda é desigual entre redes e regiões, sendo mais limitado nas escolas públicas do Norte e Nordeste. A existência de bibliotecas e salas de leitura está associada à qualidade do ensino e à permanência estudantil, o que reforça a necessidade de investimentos estruturais na rede pública, principalmente nas regiões mais vulneráveis, para reduzir as desigualdades educacionais e regionais.
+
+**Como se distribui o acesso a refeitório escolar entre as redes pública e privada nas diferentes regiões do Brasil?**
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(scales)
+
+tab_ref <- base_filtrada |>
+  mutate(
+    regiao = NO_REGIAO,
+    rede = ifelse(TP_DEPENDENCIA == 4, "Privada", "Pública")
+  ) |>
+  group_by(regiao, rede) |>
+  summarise(pct_ref = mean(IN_REFEITORIO == 1, na.rm = TRUE) * 100, .groups = "drop") |>
+  mutate(regiao = fct_relevel(regiao, "Norte","Nordeste","Centro-Oeste","Sul","Sudeste"))
+
+ggplot(tab_ref, aes(x = regiao, y = pct_ref, fill = rede)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.9) +
+  geom_text(aes(label = paste0(round(pct_ref,1), "%")),
+            position = position_dodge(width = 0.7), vjust = -0.4, size = 3.3) +
+  scale_fill_manual(NULL, values = c("Pública"="#1565C0","Privada"="#64B5F6")) +
+  scale_y_continuous("% de escolas com refeitório", limits = c(0, 100)) +
+  labs(
+    title = "Escolas com Refeitório – Pública x Privada",
+    subtitle = "Percentual por região do Brasil",
+    x = "Região do Brasil",
+    caption = "Fonte: INEP – Censo Escolar 2024"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+**Como se diferencia o acesso a banheiros escolares entre as escolas urbanas e rurais nas diferentes regiões do Brasil?**
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(scales)
+
+tab_ban <- base_filtrada |>
+  mutate(
+    regiao = NO_REGIAO,
+    local  = factor(TP_LOCALIZACAO, levels = c(1,2), labels = c("Urbana","Rural"))
+  ) |>
+  group_by(regiao, local) |>
+  summarise(pct_ban = mean(IN_BANHEIRO == 1, na.rm = TRUE) * 100, .groups = "drop") |>
+  mutate(regiao = fct_relevel(regiao, "Norte","Nordeste","Centro-Oeste","Sul","Sudeste"))
+
+ggplot(tab_ban, aes(x = regiao, y = pct_ban, fill = local)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.9) +
+  geom_text(aes(label = paste0(round(pct_ban,1), "%")),
+            position = position_dodge(width = 0.7), vjust = -0.4, size = 3.3) +
+  scale_fill_manual(NULL, values = c("Urbana"="#1E88E5","Rural"="#90A4AE")) +
+  scale_y_continuous("% de escolas com banheiro", limits = c(0, 100),
+                     labels = label_percent(scale = 1)) +
+  labs(
+    title = "Acesso a Banheiro — Urbana x Rural",
+    subtitle = "Percentual por região do Brasil | Censo Escolar 2024",
+    x = "Região do Brasil",
+    caption = "Fonte: INEP – Censo Escolar 2024"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+O gráfico revela que o acesso a banheiros nas escolas brasileiras é quase universal nas áreas urbanas, com percentuais próximos ou superiores a 99% em todas as regiões. Nas escolas rurais, embora o acesso também seja elevado, ainda se observam lacunas relevantes, especialmente no Norte (79,5%) e no Nordeste (97,2%), indicando desigualdades estruturais persistentes.As regiões Centro-Oeste, Sul e Sudeste apresentam paridade quase total entre zonas urbanas e rurais, com percentuais acima de 98% em ambos os contextos. Em síntese, o gráfico evidencia que o acesso a banheiros escolares — um item básico de dignidade e higiene — ainda reflete desigualdades territoriais, sobretudo nas regiões mais vulneráveis. Esse cenário reforça a importância de investimentos direcionados à infraestrutura rural, garantindo condições mínimas de saúde, conforto e permanência escolar.
+
+## Conclusão
+
+A análise dos microdados do Censo Escolar 2024 demonstra que a infraestrutura escolar brasileira reflete as desigualdades socioeconômicas regionais e institucionais do país. Enquanto os serviços básicos — como água potável e energia elétrica — estão próximos da universalização, outros itens essenciais, como esgotamento sanitário, refeitórios e banheiros adequados em áreas rurais, ainda apresentam grandes disparidades regionais. Os resultados mostram que as escolas públicas e rurais concentram os maiores déficits estruturais, especialmente nas regiões Norte e Nordeste, enquanto as privadas e urbanas tendem a oferecer melhores condições. Essa desigualdade na infraestrutura escolar traduz-se em diferenças de qualidade e oportunidades de aprendizagem, perpetuando desigualdades sociais mais amplas. Portanto, os achados reforçam a importância de políticas públicas focalizadas em infraestrutura educacional, sobretudo nas redes públicas e zonas rurais, como estratégia essencial para promover equidade, permanência e qualidade no ensino básico brasileiro.
+
+## Referências
+
+-   INEP – Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira. https://www.gov.br/inep/pt-br/areas-de-atuacao/pesquisas-estatisticas-e-indicadores/censo-escolar
+
+-   https://www.educacao.mg.gov.br/censo-escolar/
+
+-   https://dados.gov.br/dados/conjuntos-dados/inep-microdados-do-censo-escolar-da-educacao-basica
+
+-   https://revistas.faculdadefacit.edu.br/index.php/JNT/article/view/2562
+
+
+
+
+quarto render reports/relatorio.qmd --to html
+quarto render reports/relatorio.qmd --to pdf
+quarto convert notebooks/exploracao.qmd --to ipynb
+
+
